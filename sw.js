@@ -1,4 +1,4 @@
-const CACHE_NAME = "oncorcp-v3.0.0";
+const CACHE_NAME = "oncorcp-v3.1.0";
 const ASSETS = [
   "./",
   "./index.html",
@@ -8,7 +8,8 @@ const ASSETS = [
   "./xlsx.mini.js",
   "./ref_official.js",
   "./data_hemato.js",
-  "./data_thorax.js"
+  "./data_thorax.js",
+  "./data_digestif.js"
 ];
 
 self.addEventListener("install", (e) => {

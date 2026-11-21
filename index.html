@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0f172a">
 <meta name="robots" content="noindex">
-<title>HématoLES v2.4.2 — Assistant RCP Pharmacie</title>
+<title>OncoRCP v3.1 — Assistant RCP Pharmacie</title>
 <style>
 :root{--bg:#f8fafc;--surface:#fff;--text:#0f172a;--text-muted:#64748b;--border:#e2e8f0;--primary:#2563eb;--primary-hover:#1d4ed8;--primary-light:#eff6ff;
 --les-bg:#dcfce7;--les-text:#166534;--les-border:#86efac;--ap-bg:#fef3c7;--ap-text:#92400e;--ap-border:#fde68a;--ghs-bg:#f1f5f9;--ghs-text:#475569;--ville-bg:#f3e8ff;--ville-text:#6b21a8;--radie-bg:#fee2e2;--radie-text:#991b1b;--radius:10px;--shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04)}
@@ -135,7 +135,7 @@ td .st{font-weight:700;font-size:.82rem}td.empty{text-align:center;color:var(--t
 <body>
 <header>
   <div class="header-top">
-    <div class="brand"><span>OncoRCP</span><span class="brand-badge">v3.0 · RCP Pharmacie</span></div>
+    <div class="brand"><span>OncoRCP</span><span class="brand-badge">v3.1 · RCP Pharmacie</span></div>
     <div class="db-status" id="db-info"></div>
   </div>
   <nav>
@@ -315,8 +315,8 @@ td .st{font-weight:700;font-size:.82rem}td.empty{text-align:center;color:var(--t
       <div class="btn-row"><button class="btn btn-outline" data-act="backup">Sauvegarder (.json)</button><button class="btn btn-outline" data-act="pick-backup">Restaurer une sauvegarde</button><button class="btn btn-danger" data-act="reset-protos">Rétablir les protocoles par défaut</button></div>
     </div>
     <div class="card small muted">
-      <strong>OncoRCP version 3.0</strong> (Hématologie · Oncologie Thoracique) — Intégration des référentiels officiels LES, AAP, AAC, CPC d'octobre 2026.<br>
-      Sources bibliographiques protocoles : Référentiels OncoPaca-Corse, Onco-Nouvelle-Aquitaine 2026, LYSA (LH 2025 ; PMBL &amp; LGCB juin 2026), et <a href="https://referentiels-aristot.com/" target="_blank" rel="noopener noreferrer">Référentiels Auvergne-Rhône-Alpes en Oncologie Thoracique 2026 (ARISTOT)</a>.<br>
+      <strong>OncoRCP version 3.1</strong> (Hématologie · Oncologie Thoracique · Oncologie Digestive) — Intégration des référentiels officiels LES, AAP, AAC, CPC d'octobre 2026.<br>
+      Sources bibliographiques protocoles : Référentiels OncoPaca-Corse, Onco-Nouvelle-Aquitaine 2026, LYSA (LH 2025 ; PMBL &amp; LGCB juin 2026), et <a href="https://referentiels-aristot.com/" target="_blank" rel="noopener noreferrer">Référentiels Auvergne-Rhône-Alpes en Oncologie Thoracique 2026 (ARISTOT)</a>, et <a href="https://www.snfge.org/tncd" target="_blank" rel="noopener noreferrer">Thésaurus National de Cancérologie Digestive (TNCD 2025-2026)</a>.<br>
       Aide à la vérification en RCP, à confronter au libellé officiel : le pharmacien reste responsable du choix du code.
     </div>
   </section>
@@ -350,6 +350,7 @@ td .st{font-weight:700;font-size:.82rem}td.empty{text-align:center;color:var(--t
 <script src="./ref_official.js"></script>
 <script src="./data_hemato.js"></script>
 <script src="./data_thorax.js"></script>
+<script src="./data_digestif.js"></script>
 <script>
 
 /* ===== Noyau : lecture et interprétation des référentiels (fonctions pures) ===== */
@@ -630,8 +631,16 @@ if (typeof module !== "undefined") module.exports = HL;
       editProto: null, editPatho: null, editDerog: null, editCart: null
     }
   };
-  // Assure la propriété filiere sur toute pathologie chargée
+  // Assure la propriété filiere sur toute pathologie chargée et fusionne les nouveaux modules (ex : Digestif)
   S.pathos.forEach(p => { if (!p.filiere) p.filiere = "hemato"; });
+  (function mergeNewModules() {
+    const knownPathos = new Set(S.pathos.map(p => p.id));
+    const knownProtos = new Set(S.protocols.map(p => p.id));
+    let changed = false;
+    DEFAULT_PATHOS.forEach(p => { if (!knownPathos.has(p.id)) { S.pathos.push(deep(p)); changed = true; } });
+    DEFAULT_PROTOCOLS.forEach(p => { if (!knownProtos.has(p.id)) { S.protocols.push(deep(p)); changed = true; } });
+    if (changed) { LS.set("pathos", S.pathos); LS.set("protocols", S.protocols); }
+  })();
   const save = k => LS.set(k, S[k]);
   const today = () => todayISO();
 
@@ -1343,7 +1352,7 @@ if (typeof module !== "undefined") module.exports = HL;
     "pick-les": () => $("file-les").click(), "go-data": () => switchView("data"), "pick-backup": () => $("file-backup").click(),
     backup: exportBackup,
     "reset-ref": async () => { if (confirm("Revenir aux référentiels embarqués dans le fichier (LES, AAP, AAC, CPC, liste ANSM) ?")) { await IDB.del("ref"); await IDB.del("acc"); await IDB.del("ansm"); loadEmbedded(); $("import-log").textContent = ""; renderAll(); toast("Référentiels embarqués rétablis"); } },
-    "reset-protos": () => { if (confirm("Rétablir les pathologies et protocoles par défaut (Hématologie + Thoracique) ? Vos ajouts et modifications seront perdus (les accès dérogatoires sont conservés).")) { S.pathos = deep(DEFAULT_PATHOS); S.protocols = deep(DEFAULT_PROTOCOLS); S.ui.patho = "ALL"; S.ui.qtag = ""; save("pathos"); save("protocols"); loadProtoForm(null); refreshNx(); renderAll(); toast("Protocoles par défaut rétablis"); } }
+    "reset-protos": () => { if (confirm("Rétablir les pathologies et protocoles par défaut (Hématologie + Thoracique + Digestif) ? Vos ajouts et modifications seront perdus (les accès dérogatoires sont conservés).")) { S.pathos = deep(DEFAULT_PATHOS); S.protocols = deep(DEFAULT_PROTOCOLS); S.ui.patho = "ALL"; S.ui.qtag = ""; save("pathos"); save("protocols"); loadProtoForm(null); refreshNx(); renderAll(); toast("Protocoles par défaut rétablis"); } }
   };
   document.addEventListener("click", e => { const el = e.target.closest("[data-act]"); if (!el) return; const f = ACT[el.dataset.act]; if (f) { e.preventDefault(); f(el); } });
   document.addEventListener("change", e => {
